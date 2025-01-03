@@ -1,0 +1,134 @@
+{% extends 'coding/base.html' %}
+{% load static %}
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section text-center py-5">
+    <h1 class="display-4 mb-4">Welcome to PythonLearn</h1>
+    <p class="lead mb-4" style="color: #FFD700;">Master Python Programming Through Interactive Learning</p>
+    {% if not user.is_authenticated %}
+        <div class="mt-3">
+            <a href="{% url 'coding:login' %}" class="btn btn-primary btn-lg mx-2">Get Started</a>
+            <a href="{% url 'coding:register' %}" class="btn btn-outline-primary btn-lg mx-2">Sign Up</a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Features Section -->
+<div class="row my-5">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h3 class="card-title">Learn at Your Pace</h3>
+                <p class="card-text">Start with the basics and progress through advanced concepts at your own speed. Our adaptive learning system adjusts to your skill level.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h3 class="card-title">Interactive Challenges</h3>
+                <p class="card-text">Practice with real-world coding problems. Get immediate feedback and improve your programming skills through hands-on experience.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h3 class="card-title">Track Progress</h3>
+                <p class="card-text">Monitor your learning journey with detailed progress tracking. Earn achievements and advance through difficulty levels.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- About Section -->
+<div class="row my-5">
+    <div class="col-md-6">
+        <h2>About Us</h2>
+        <p>PythonLearn is dedicated to making programming education accessible to everyone. Our platform combines modern learning techniques with practical coding exercises to create an effective learning experience.</p>
+        <p>Whether you're a complete beginner or looking to advance your Python skills, we have the resources and support you need to succeed.</p>
+    </div>
+    <div class="col-md-6">
+        <h2>Why Choose Us</h2>
+        <ul class="list-unstyled">
+            <li class="mb-2">✓ Structured learning path</li>
+            <li class="mb-2">✓ Real-world programming challenges</li>
+            <li class="mb-2">✓ Immediate feedback on your code</li>
+            <li class="mb-2">✓ Community support</li>
+            <li class="mb-2">✓ Progress tracking</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Team Section -->
+<div class="my-5">
+    <h2 class="text-center mb-4">Our Team</h2>
+    <div class="row justify-content-center">
+        <div class="col-md-4 mb-4">
+            <div class="card text-center">
+                <img src="{% static 'img/ilyas.jpg' %}" class="card-img-top team-img" alt="Ilyas BEN ALLA">
+                <div class="card-body">
+                    <h5 class="card-title">Ilyas BEN ALLA</h5>
+                    <p class="card-text">Team Member</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card text-center">
+                <img src="{% static 'coding/images/team/nawfal.jpg' %}" class="card-img-top team-img" alt="Nawfal BENHAMDANE">
+                <div class="card-body">
+                    <h5 class="card-title">Nawfal BENHAMDANE</h5>
+                    <p class="card-text">Team Member</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card text-center">
+                <img src="{% static 'coding/images/team/tariq.jpg' %}" class="card-img-top team-img" alt="Tariq BARKI">
+                <div class="card-body">
+                    <h5 class="card-title">Tariq BARKI</h5>
+                    <p class="card-text">Team Member</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card text-center">
+                <img src="{% static 'coding/images/team/aymane.jpg' %}" class="card-img-top team-img" alt="Aymane CHATIT">
+                <div class="card-body">
+                    <h5 class="card-title">Aymane CHATIT</h5>
+                    <p class="card-text">Team Member</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card text-center">
+                <img src="{% static 'coding/images/team/mouhamed.jpg' %}" class="card-img-top team-img" alt="Mouhamed BOUAALLA">
+                <div class="card-body">
+                    <h5 class="card-title">Mouhamed BOUAALLA</h5>
+                    <p class="card-text">Team Member</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card text-center">
+                <img src="{% static 'coding/images/team/mohamed_benkirane.jpg' %}" class="card-img-top team-img" alt="Mohamed BENKIRANE">
+                <div class="card-body">
+                    <h5 class="card-title">Mohamed BENKIRANE</h5>
+                    <p class="card-text">Team Member</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card text-center">
+                <img src="{% static 'coding/images/team/mohamed_bouabid.jpg' %}" class="card-img-top team-img" alt="Mohamed BOUABID">
+                <div class="card-body">
+                    <h5 class="card-title">Mohamed BOUABID</h5>
+                    <p class="card-text">Team Member</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}
