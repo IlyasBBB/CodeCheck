@@ -31,6 +31,24 @@ class Membre(models.Model):
     def __str__(self):
         return f"{self.prenom} {self.nom} (Level {self.level})"
 
+class Submission(models.Model):
+    STATUS_CHOICES = [
+        ('P', 'Pending'),
+        ('S', 'Success'),
+        ('F', 'Failed'),
+        ('T', 'Time Limit Exceeded')
+    ]
+
+    user = models.ForeignKey(Membre, on_delete=models.CASCADE)
+    problem = models.ForeignKey(Problem, on_delete=models.CASCADE)
+    code = models.TextField()
+    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default='P')
+    submission_time = models.DateTimeField(auto_now_add=True)
+    execution_time = models.FloatField(null=True)
+
+    def __str__(self):
+        return f"{self.user} - {self.problem} ({self.get_status_display()})"
+
 
 class InitialTest(models.Model):
     DIFFICULTY_CHOICES = [
