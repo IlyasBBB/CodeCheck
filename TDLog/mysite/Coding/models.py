@@ -127,3 +127,9 @@ class InitialTest(models.Model):
 
     class Meta:
         ordering = ['difficulty', 'id']
+class TestResult(models.Model):
+    user = models.ForeignKey(Membre, on_delete=models.CASCADE)
+    test = models.ForeignKey(InitialTest, on_delete=models.CASCADE)
+    answer = models.CharField(max_length=1)
+    is_correct = models.BooleanField()
+    taken_at = models.DateTimeField(auto_now_add=True)

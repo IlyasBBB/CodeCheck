@@ -1,0 +1,331 @@
+{% extends 'coding/base.html' %}
+{% load static %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-dark@4/dark.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Progress Bar -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="progress" style="height: 25px;">
+                <div class="progress-bar bg-success" role="progressbar" style="width: 10%;" 
+                     id="progressBar" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100">
+                    Question 1/10
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Problem Description (Left Side) -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title">Initial Test - Question <span id="questionNumber">1</span></h3>
+                    <div id="questionContent">
+                        <p class="question-text">{{ questions.0.question }}</p>
+                        <div class="question-info mb-3">
+                            <span class="badge {% if questions.0.difficulty == 1 %}bg-success{% elif questions.0.difficulty == 2 %}bg-warning{% else %}bg-danger{% endif %} me-2">
+                                {{ questions.0.get_difficulty_display }}
+                            </span>
+                            <span class="badge bg-warning text-dark">
+                                {{ questions.0.points }} Points
+                            </span>
+                        </div>
+                        <div class="test-cases">
+                            <h5>Test Cases:</h5>
+                            <div id="testCasesDisplay"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Code Editor (Right Side) -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title">Your Solution</h3>
+                    <div id="editor-container">
+                        <textarea id="code-editor" class="form-control" rows="15">def solution(n):
+    # Write your code here
+    # The function should take one parameter and return the result
+    return n</textarea>
+                    </div>
+                    <div class="mt-3 d-flex justify-content-between">
+                        <button id="submitCode" class="btn btn-primary">Submit Solution</button>
+                        <button id="skipQuestion" class="btn btn-secondary">Skip Question</button>
+                    </div>
+                    <div id="output" class="mt-3">
+                        <pre class="bg-dark text-light p-3 rounded" style="display: none;"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentQuestion = 0;
+    let totalPoints = 0;
+    let solvedQuestions = [];
+    const questions = {{ questions_json|safe }};
+    const totalQuestions = questions.length;
+    
+    // Initialize CodeMirror
+    const editor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
+        lineNumbers: true,
+        mode: "python",
+        theme: "monokai",
+        indentUnit: 4,
+        autoCloseBrackets: true,
+        matchBrackets: true
+    });
+
+    function clearEditor() {
+        editor.setValue('def solution(n):\n    # Write your code here\n    # The function should take one parameter and return the result\n    return n');
+        editor.clearHistory(); // Clear undo/redo history
+    }
+
+    function clearOutput() {
+        const outputPre = document.querySelector('#output pre');
+        outputPre.style.display = 'none';
+        outputPre.textContent = '';
+    }
+
+    function updateProgress() {
+        const progress = ((currentQuestion + 1) / totalQuestions) * 100;
+        const progressBar = document.getElementById('progressBar');
+        progressBar.style.width = `${progress}%`;
+        progressBar.textContent = `Question ${currentQuestion + 1}/${totalQuestions}`;
+        progressBar.setAttribute('aria-valuenow', progress);
+    }
+
+    function displayTestCases(testCases) {
+        try {
+            const cases = JSON.parse(testCases);
+            let html = '<table class="table table-bordered"><thead><tr><th>Input</th><th>Expected Output</th></tr></thead><tbody>';
+            cases.forEach(testCase => {
+                html += `<tr><td>${testCase.input}</td><td>${testCase.expected}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            document.getElementById('testCasesDisplay').innerHTML = html;
+        } catch (e) {
+            console.error('Error parsing test cases:', e);
+            document.getElementById('testCasesDisplay').innerHTML = '<p class="text-danger">Error displaying test cases</p>';
+        }
+    }
+
+    function updateQuestion(questionIndex) {
+        const question = questions[questionIndex];
+        document.getElementById('questionNumber').textContent = questionIndex + 1;
+        document.querySelector('.question-text').textContent = question.question;
+        
+        const difficultyClass = question.difficulty === 1 ? 'bg-success' : 
+                               question.difficulty === 2 ? 'bg-warning' : 'bg-danger';
+        const difficultyText = ['Easy', 'Medium', 'Hard'][question.difficulty - 1];
+        document.querySelector('.question-info').innerHTML = `
+            <span class="badge ${difficultyClass} me-2">${difficultyText}</span>
+            <span class="badge bg-warning text-dark">${question.points} Points</span>
+        `;
+        
+        displayTestCases(question.test_cases);
+        updateProgress();
+        clearEditor();
+        clearOutput();
+
+        // Update button text and style for last question
+        const skipButton = document.getElementById('skipQuestion');
+        const submitButton = document.getElementById('submitCode');
+        
+        if (questionIndex === totalQuestions - 1) {
+            skipButton.textContent = 'Skip and Finish Test';
+            skipButton.classList.remove('btn-secondary');
+            skipButton.classList.add('btn-warning');
+            submitButton.textContent = 'Submit Final Answer';
+        } else {
+            skipButton.textContent = 'Skip Question';
+            skipButton.classList.remove('btn-warning');
+            skipButton.classList.add('btn-secondary');
+            submitButton.textContent = 'Submit Solution';
+        }
+    }
+
+    function moveToNextQuestion(solved = false) {
+        if (solved) {
+            solvedQuestions.push({
+                id: questions[currentQuestion].id,
+                points: questions[currentQuestion].points,
+                difficulty: questions[currentQuestion].difficulty
+            });
+            totalPoints += questions[currentQuestion].points;
+        }
+
+        currentQuestion++;
+        
+        if (currentQuestion < totalQuestions) {
+            updateQuestion(currentQuestion);
+        } else {
+            submitFinalResults();
+        }
+    }
+
+    async function submitFinalResults() {
+        try {
+            const response = await fetch('{% url "coding:complete_initial_test" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    solved_questions: solvedQuestions,
+                    total_questions: totalQuestions
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                await Swal.fire({
+                    title: 'Test Initial Terminé !',
+                    html: `
+                        <p>Félicitations !</p>
+                        <p>Niveau atteint : <strong>${data.level}</strong></p>
+                        <p>Points obtenus : <strong>${data.points}</strong></p>
+                    `,
+                    icon: 'success',
+                    confirmButtonText: 'Voir les Problèmes',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    allowEnterKey: false
+                });
+                
+                // Force redirect to problems page
+                window.location.replace(data.redirect_url);
+            } else {
+                if (data.redirect_url) {
+                    window.location.replace(data.redirect_url);
+                } else {
+                    Swal.fire({
+                        title: 'Erreur',
+                        text: data.error || 'Une erreur est survenue',
+                        icon: 'error'
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            Swal.fire({
+                title: 'Erreur',
+                text: 'Une erreur est survenue lors de la soumission des résultats',
+                icon: 'error'
+            });
+        }
+    }
+
+    // Initialize first question
+    updateQuestion(0);
+
+    // Event Listeners
+    document.getElementById('skipQuestion').addEventListener('click', async function() {
+        if (currentQuestion === totalQuestions - 1) {
+            // This is the last question, submit final results directly
+            await submitFinalResults();
+        } else {
+            moveToNextQuestion(false);
+        }
+    });
+
+    document.getElementById('submitCode').addEventListener('click', async function() {
+        const code = editor.getValue();
+        const outputPre = document.querySelector('#output pre');
+        outputPre.style.display = 'block';
+        outputPre.textContent = 'Running...';
+
+        try {
+            const response = await fetch('{% url "coding:submit_initial_test" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    code: code,
+                    question_id: questions[currentQuestion].id
+                })
+            });
+
+            const data = await response.json();
+            outputPre.textContent = data.output;
+
+            if (data.success && data.next_question) {
+                // Add a small delay to show the success message
+                setTimeout(() => {
+                    if (currentQuestion < totalQuestions - 1) {
+                        moveToNextQuestion(true);
+                        clearOutput();
+                    } else {
+                        submitFinalResults();
+                    }
+                }, 1500);
+            }
+        } catch (error) {
+            outputPre.textContent = 'Error: ' + error.message;
+        }
+    });
+</script>
+
+<style>
+    .CodeMirror {
+        height: 400px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .test-cases {
+        background-color: var(--dark-card);
+        padding: 15px;
+        border-radius: 4px;
+        margin-top: 15px;
+    }
+
+    .table {
+        color: var(--text-light);
+    }
+
+    .table th, .table td {
+        border-color: var(--gold);
+    }
+
+    .progress {
+        background-color: var(--dark-card);
+        border: 1px solid var(--gold);
+    }
+
+    .progress-bar {
+        background-color: var(--gold);
+        color: var(--dark-bg);
+        font-weight: bold;
+    }
+
+    .swal2-popup {
+        background: var(--dark-card) !important;
+        color: var(--text-light) !important;
+    }
+    
+    .swal2-title, .swal2-html-container {
+        color: var(--text-light) !important;
+    }
+    
+    .swal2-confirm {
+        background-color: var(--gold) !important;
+        color: var(--dark-bg) !important;
+    }
+</style>
+{% endblock %}
