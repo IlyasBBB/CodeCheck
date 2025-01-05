@@ -30,3 +30,22 @@ class Membre(models.Model):
 
     def __str__(self):
         return f"{self.prenom} {self.nom} (Level {self.level})"
+
+
+class InitialTest(models.Model):
+    DIFFICULTY_CHOICES = [
+        (1, 'Easy'),
+        (2, 'Medium'),
+        (3, 'Hard')
+    ]
+    
+    question = models.TextField()
+    test_cases = models.TextField()
+    points = models.IntegerField(default=10)
+    difficulty = models.IntegerField(choices=DIFFICULTY_CHOICES, default=1)
+
+    def __str__(self):
+        return f"Question {self.id}"
+
+    class Meta:
+        ordering = ['difficulty', 'id']
