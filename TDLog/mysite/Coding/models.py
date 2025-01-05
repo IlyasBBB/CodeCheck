@@ -31,6 +31,38 @@ class Membre(models.Model):
     def __str__(self):
         return f"{self.prenom} {self.nom} (Level {self.level})"
 
+class ProblemCategory(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+
+    def __str__(self):
+        return self.name
+
+class Domain(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    icon = models.CharField(max_length=50, help_text="Font Awesome icon class")
+    order = models.IntegerField(default=0)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['order']
+
+    @classmethod
+    def get_default_domain(cls):
+        domain, _ = cls.objects.get_or_create(
+            name='General',
+            defaults={
+                'description': 'General programming problems',
+                'icon': 'fas fa-code'
+            }
+        )
+        return domain.id
+
+
+
 class Problem(models.Model):
     DIFFICULTY_CHOICES = [
         ('easy', 'Easy'),
