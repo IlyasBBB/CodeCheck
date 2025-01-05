@@ -1,0 +1,211 @@
+{% extends 'coding/base.html' %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Domain Selection -->
+    <div class="row">
+        {% for domain in domains %}
+        <div class="col-md-4 mb-4">
+            <!-- Add this debug info temporarily -->
+            <!-- {{ domain.id }} - {{ domain.name }} -->
+            <div class="domain-card" data-domain-id="{{ domain.id }}">
+                <div class="card h-100 domain-block">
+                    <div class="card-body text-center">
+                        <i class="{{ domain.icon }} fa-3x mb-3" style="color: var(--gold);"></i>
+                        <h4 class="card-title">{{ domain.name }}</h4>
+                        <p class="card-text">{{ domain.description }}</p>
+                        <button class="btn btn-outline-primary view-problems">View Problems</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Problem List (Initially Hidden) -->
+    <div id="problemsList" class="row mt-4" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 id="domainTitle" class="mb-0"></h3>
+                    <div class="filters">
+                        <select id="difficultyFilter" class="form-select">
+                            <option value="">All Difficulties</option>
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard">Hard</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="problemsContainer" class="row">
+                        <!-- Problems will be dynamically added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .domain-block {
+        background-color: var(--dark-card);
+        border: 1px solid var(--gold);
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .domain-block:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3);
+    }
+
+    .problem-card {
+        background-color: var(--dark-card);
+        border: 1px solid var(--gold);
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+
+    .problem-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 3px 10px rgba(255, 215, 0, 0.2);
+    }
+
+    .difficulty-easy {
+        color: #28a745;
+    }
+
+    .difficulty-medium {
+        color: #ffc107;
+    }
+
+    .difficulty-hard {
+        color: #dc3545;
+    }
+
+    .problem-description {
+        color: var(--text-light);
+        margin: 15px 0;
+    }
+
+    .problem-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 15px;
+        border-top: 1px solid rgba(255, 215, 0, 0.2);
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const problemsList = document.getElementById('problemsList');
+    const domainTitle = document.getElementById('domainTitle');
+    const problemsContainer = document.getElementById('problemsContainer');
+    const difficultyFilter = document.getElementById('difficultyFilter');
+
+    // Add click event listeners to all "View Problems" buttons
+    document.querySelectorAll('.view-problems').forEach(button => {
+        button.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const domainCard = this.closest('.domain-card');
+            const domainId = domainCard.dataset.domainId;
+            
+            try {
+                // Disable button and show loading state
+                button.disabled = true;
+                button.innerHTML = 'Loading...';
+                
+                // Log the request
+                console.log(`Fetching problems for domain ${domainId}`);
+                
+                // Fetch problems for the selected domain
+                const response = await fetch(`/api/problems/${domainId}/`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Received data:', data); // Debug log
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load problems');
+                }
+                
+                // Update the domain title
+                domainTitle.textContent = `${data.domain_name} (${data.count} problems)`;
+                
+                // Update problems display
+                if (data.problems && data.problems.length > 0) {
+                    updateProblemsDisplay(data.problems);
+                    problemsList.style.display = 'block';
+                    problemsList.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    problemsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No problems found for this domain.</div></div>';
+                    problemsList.style.display = 'block';
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`Failed to load problems: ${error.message}`);
+            } finally {
+                // Reset button state
+                button.disabled = false;
+                button.innerHTML = 'View Problems';
+            }
+        });
+    });
+
+    // Add difficulty filter functionality
+    difficultyFilter.addEventListener('change', function() {
+        const difficulty = this.value;
+        const problemCards = problemsContainer.querySelectorAll('.problem-card');
+        
+        problemCards.forEach(card => {
+            if (!difficulty || card.dataset.difficulty === difficulty) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    });
+
+    function updateProblemsDisplay(problems) {
+        problemsContainer.innerHTML = '';
+        console.log(`Displaying ${problems.length} problems`);
+        
+        problems.forEach(problem => {
+            const difficultyClass = `difficulty-${problem.difficulty}`;
+            const difficultyText = problem.difficulty.charAt(0).toUpperCase() + problem.difficulty.slice(1);
+            
+            const problemCard = document.createElement('div');
+            problemCard.className = 'col-md-6 col-lg-4 mb-4';
+            problemCard.dataset.difficulty = problem.difficulty;
+            
+            problemCard.innerHTML = `
+                <div class="card problem-card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">${problem.title}</h5>
+                        <div class="problem-description">
+                            ${problem.description}
+                        </div>
+                        <div class="problem-footer">
+                            <div>
+                                <span class="badge ${difficultyClass}">${difficultyText}</span>
+                                <span class="ms-2">${problem.points} points</span>
+                            </div>
+                            <a href="/problem/${problem.id}/" class="btn btn-primary btn-sm">
+                                ${problem.completed ? 'Review' : 'Solve'}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            problemsContainer.appendChild(problemCard);
+        });
+    }
+});
+</script>
+{% endblock %} 

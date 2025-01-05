@@ -204,6 +204,72 @@ def submit_initial_test(request):
     
     return JsonResponse({'success': False, 'output': 'Invalid request'})
 
+@login_required
+def problem_list(request):
+    membre = request.user.membre
+    problems = Problem.objects.filter(difficulty=membre.level)
+    return render(request, 'coding/problem_list.html', {'problems': problems})
+
+@login_required
+def problem_detail(request, problem_id):
+    problem = get_object_or_404(Problem, id=problem_id)
+    return render(request, 'coding/problem_detail.html', {
+        'problem': problem
+    })
+
+@login_required
+def submit_solution(request, problem_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            code = data.get('code')
+            problem = get_object_or_404(Problem, id=problem_id)
+            
+            # Execute code and check result
+            result = execute_code(code, problem.test_cases)
+            
+            if result['passed']:
+                # Create successful submission
+                Submission.objects.create(
+                    user=request.user.membre,
+                    problem=problem,
+                    code=code,
+                    status='S'
+                )
+                
+                # Update user points
+                membre = request.user.membre
+                membre.points += problem.points
+                membre.save()
+                
+                return JsonResponse({
+                    'success': True,
+                    'passed': True,
+                    'points': problem.points,
+                    'output': 'All test cases passed! Great job!'
+                })
+            else:
+                # Create failed submission
+                Submission.objects.create(
+                    user=request.user.membre,
+                    problem=problem,
+                    code=code,
+                    status='F'
+                )
+                
+                return JsonResponse({
+                    'success': True,
+                    'passed': False,
+                    'output': result['output']
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
 def execute_code(code, test_cases):
     try:
