@@ -170,6 +170,40 @@ def create_default_questions():
                 points=q["points"]
             )
 
+@login_required
+def submit_initial_test(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            code = data.get('code')
+            question_id = data.get('question_id')
+            
+            # Get the question
+            question = get_object_or_404(InitialTest, id=question_id)
+            
+            # Execute code and check result
+            result = execute_code(code, question.test_cases)
+            
+            if result['passed']:
+                return JsonResponse({
+                    'success': True,
+                    'output': 'Test cases passed! Moving to next question...',
+                    'next_question': True
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'output': result['output']
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'output': f'Error: {str(e)}'
+            })
+    
+    return JsonResponse({'success': False, 'output': 'Invalid request'})
+
 
 def execute_code(code, test_cases):
     try:
@@ -360,3 +394,15 @@ def run_test_cases(code_file, test_cases):
         'passed': all_passed,
         'output': '\n'.join(output)
     }
+
+@login_required
+def problems_view(request):
+    # First, check if user has completed initial test
+    if not request.user.membre.has_completed_initial_test:
+        return redirect('coding:initial_test')
+    
+    # Get all domains and print debug info
+    domains = Domain.objects.all()
+    print(f"Available domains: {[{'id': d.id, 'name': d.name} for d in domains]}")
+    
+    return render(request, 'coding/problems.html', {'domains': domains})
