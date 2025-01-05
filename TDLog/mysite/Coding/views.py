@@ -19,6 +19,158 @@ from django.urls import reverse
 def home(request):
     return render(request, 'coding/home.html')
 
+@login_required
+def take_initial_test(request):
+    # If user has already completed the test, redirect to problems
+    if request.user.membre.has_completed_initial_test:
+        return redirect('coding:problems')
+    
+    # Create initial test questions if none exist
+    create_default_questions()
+    
+    # Get questions and render the test
+    questions = InitialTest.objects.all()
+    questions_json = [{
+        'id': q.id,
+        'question': q.question,
+        'test_cases': q.test_cases,
+        'points': q.points,
+        'difficulty': q.difficulty
+    } for q in questions]
+    
+    return render(request, 'coding/initial_test.html', {
+        'questions': questions,
+        'questions_json': json.dumps(questions_json)
+    })
+
+
+
+def create_default_questions():
+    """
+    Create initial test questions if none exist
+    """
+    if InitialTest.objects.count() == 0:
+        questions = [
+            # Easy Questions (Difficulty 1)
+            {
+                "question": "Write a function that returns the square of a number.",
+                "test_cases": json.dumps([
+                    {"input": "5", "expected": "25"},
+                    {"input": "3", "expected": "9"},
+                    {"input": "0", "expected": "0"}
+                ]),
+                "difficulty": 1,
+                "points": 10
+            },
+            {
+                "question": "Write a function that returns True if a number is even, and False if it's odd.",
+                "test_cases": json.dumps([
+                    {"input": "4", "expected": "True"},
+                    {"input": "7", "expected": "False"},
+                    {"input": "0", "expected": "True"}
+                ]),
+                "difficulty": 1,
+                "points": 10
+            },
+            {
+                "question": "Write a function that returns the sum of digits in a number.",
+                "test_cases": json.dumps([
+                    {"input": "123", "expected": "6"},
+                    {"input": "456", "expected": "15"},
+                    {"input": "0", "expected": "0"}
+                ]),
+                "difficulty": 1,
+                "points": 10
+            },
+            
+            # Medium Questions (Difficulty 2)
+            {
+                "question": "Write a function that returns the factorial of a number.",
+                "test_cases": json.dumps([
+                    {"input": "5", "expected": "120"},
+                    {"input": "3", "expected": "6"},
+                    {"input": "0", "expected": "1"}
+                ]),
+                "difficulty": 2,
+                "points": 20
+            },
+            {
+                "question": "Write a function that returns the nth Fibonacci number (starting with 0 and 1).",
+                "test_cases": json.dumps([
+                    {"input": "5", "expected": "5"},
+                    {"input": "7", "expected": "13"},
+                    {"input": "0", "expected": "0"}
+                ]),
+                "difficulty": 2,
+                "points": 20
+            },
+            {
+                "question": "Write a function that checks if a number is prime.",
+                "test_cases": json.dumps([
+                    {"input": "7", "expected": "True"},
+                    {"input": "4", "expected": "False"},
+                    {"input": "2", "expected": "True"}
+                ]),
+                "difficulty": 2,
+                "points": 20
+            },
+            
+            # Hard Questions (Difficulty 3)
+            {
+                "question": "Write a function that returns the GCD (Greatest Common Divisor) of two numbers.",
+                "test_cases": json.dumps([
+                    {"input": "48, 18", "expected": "6"},
+                    {"input": "54, 24", "expected": "6"},
+                    {"input": "7, 13", "expected": "1"}
+                ]),
+                "difficulty": 3,
+                "points": 30
+            },
+            {
+                "question": "Write a function that checks if a number is a palindrome.",
+                "test_cases": json.dumps([
+                    {"input": "12321", "expected": "True"},
+                    {"input": "12345", "expected": "False"},
+                    {"input": "11", "expected": "True"}
+                ]),
+                "difficulty": 3,
+                "points": 30
+            },
+            {
+                "question": "Write a function that returns the number of trailing zeros in factorial of a number.",
+                "test_cases": json.dumps([
+                    {"input": "5", "expected": "1"},
+                    {"input": "10", "expected": "2"},
+                    {"input": "25", "expected": "6"}
+                ]),
+                "difficulty": 3,
+                "points": 30
+            },
+            {
+                "question": "Write a function that returns the sum of all prime numbers up to n.",
+                "test_cases": json.dumps([
+                    {"input": "10", "expected": "17"},
+                    {"input": "5", "expected": "10"},
+                    {"input": "2", "expected": "2"}
+                ]),
+                "difficulty": 3,
+                "points": 30
+            }
+        ]
+
+        # Delete existing questions (optional)
+        InitialTest.objects.all().delete()
+
+        # Create all questions
+        for q in questions:
+            InitialTest.objects.create(
+                question=q["question"],
+                test_cases=q["test_cases"],
+                difficulty=q["difficulty"],
+                points=q["points"]
+            )
+
+
 def execute_code(code, test_cases):
     try:
         # Parse test cases if they're in string format

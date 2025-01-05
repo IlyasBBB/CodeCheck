@@ -31,6 +31,34 @@ class Membre(models.Model):
     def __str__(self):
         return f"{self.prenom} {self.nom} (Level {self.level})"
 
+class Problem(models.Model):
+    DIFFICULTY_CHOICES = [
+        ('easy', 'Easy'),
+        ('medium', 'Medium'),
+        ('hard', 'Hard')
+    ]
+
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES)
+    domain = models.ForeignKey(
+        Domain, 
+        on_delete=models.CASCADE, 
+        related_name='problems',
+        default=Domain.get_default_domain
+    )
+    test_cases = models.TextField()  # JSON field for test cases
+    solution_template = models.TextField(default="def solution():\n    pass")
+    points = models.IntegerField(default=10)
+    created_at = models.DateTimeField(default=timezone.now)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.title} ({self.difficulty})"
+
+    class Meta:
+        ordering = ['difficulty', 'created_at']
+
 class Submission(models.Model):
     STATUS_CHOICES = [
         ('P', 'Pending'),
