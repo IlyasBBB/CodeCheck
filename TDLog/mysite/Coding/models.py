@@ -1,6 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
 from math import floor
+
 
 class Membre(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -12,12 +15,13 @@ class Membre(models.Model):
     level = models.IntegerField(default=0)
     points = models.IntegerField(default=0)
     has_completed_initial_test = models.BooleanField(default=False)
-    
 
     def update_level(self):
+     
         if self.points < 100:
             new_level = 0
         else:
+            # Calculate level based on points
             new_level = max(0, floor((self.points - 100) / 300) + 1)
         
         # Check if level changed
@@ -31,12 +35,14 @@ class Membre(models.Model):
     def __str__(self):
         return f"{self.prenom} {self.nom} (Level {self.level})"
 
+
 class ProblemCategory(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField()
 
     def __str__(self):
         return self.name
+
 
 class Domain(models.Model):
     name = models.CharField(max_length=100)
@@ -62,7 +68,6 @@ class Domain(models.Model):
         return domain.id
 
 
-
 class Problem(models.Model):
     DIFFICULTY_CHOICES = [
         ('easy', 'Easy'),
@@ -84,12 +89,15 @@ class Problem(models.Model):
     points = models.IntegerField(default=10)
     created_at = models.DateTimeField(default=timezone.now)
     is_active = models.BooleanField(default=True)
+    time_limit = models.IntegerField(default=300, help_text="Time limit in seconds")
+    penalty_points = models.IntegerField(default=5, help_text="Points deducted if time limit exceeded")
 
     def __str__(self):
         return f"{self.title} ({self.difficulty})"
 
     class Meta:
         ordering = ['difficulty', 'created_at']
+
 
 class Submission(models.Model):
     STATUS_CHOICES = [
@@ -127,6 +135,8 @@ class InitialTest(models.Model):
 
     class Meta:
         ordering = ['difficulty', 'id']
+
+
 class TestResult(models.Model):
     user = models.ForeignKey(Membre, on_delete=models.CASCADE)
     test = models.ForeignKey(InitialTest, on_delete=models.CASCADE)
