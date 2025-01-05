@@ -170,6 +170,36 @@ def create_default_questions():
                 points=q["points"]
             )
 
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None:
+            login(request, user)
+            
+            # Check if user has a membre profile and hasn't taken the test yet
+            try:
+                membre = user.membre
+                if membre.level == 0:  # User hasn't taken the test yet
+                    messages.info(request, 'Please complete your initial test to continue.')
+                    return redirect('coding:initial_test')
+                else:
+                    return redirect('coding:problems')  # User has taken the test
+            except:
+                messages.error(request, 'User profile not found.')
+                return redirect('coding:home')
+        else:
+            messages.error(request, 'Invalid username or password.')
+    
+    return render(request, 'coding/login.html')
+
+@login_required
+def logout_view(request):
+    logout(request)
+    return redirect('coding:home')
+
 @login_required
 def submit_initial_test(request):
     if request.method == 'POST':
