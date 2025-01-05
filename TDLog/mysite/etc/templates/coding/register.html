@@ -1,0 +1,82 @@
+{% extends 'coding/base.html' %}
+{% load static %}
+{% block content %}
+<div class="auth-container">
+    <div style="background-image: url('{% static 'img/222.png' %}'); background-size: cover; background-position: center; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; overflow: hidden; z-index: -1;">
+        <div style="background-color: rgba(0, 0, 0, 0.7); position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
+   </div>
+   <div class="container" style="position: relative; padding-top: 5rem; padding-bottom: 5rem;">
+       <div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="auth-card">
+            <h3 class="card-title text-center mb-4">Create an Account</h3>
+            
+            {% if form.errors %}
+                <div class="alert alert-danger">
+                    <ul class="mb-0">
+                        {% for field, errors in form.errors.items %}
+                            {% for error in errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+            
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="prenom" class="form-label">First Name</label>
+                        <input type="text" class="form-control" id="prenom" name="prenom" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="nom" class="form-label">Last Name</label>
+                        <input type="text" class="form-control" id="nom" name="nom" required>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="email" name="email" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="telephone" class="form-label">Phone Number</label>
+                    <input type="tel" class="form-control" id="telephone" name="telephone">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="password1" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password1" name="password1" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="password2" class="form-label">Confirm Password</label>
+                    <input type="password" class="form-control" id="password2" name="password2" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="profile_image" class="form-label">Profile Image</label>
+                    <input type="file" class="form-control" id="profile_image" name="profile_image" accept="image/*">
+                    <div class="form-text text-light">Optional. A default image will be used if none is provided.</div>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary">Register</button>
+                </div>
+            </form>
+            
+            <div class="text-center mt-3">
+                <p>Already have an account? <a href="{% url 'coding:login' %}">Login here</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}
