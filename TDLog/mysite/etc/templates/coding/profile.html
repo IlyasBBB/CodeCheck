@@ -1,53 +1,274 @@
 {% extends 'coding/base.html' %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-4">
-        <div class="card">
-            <img src="{{ membre.profil.url }}" class="card-img-top" alt="Profile Picture">
-            <div class="card-body">
-                <h5 class="card-title">{{ membre.prenom }} {{ membre.nom }}</h5>
-                <p class="card-text">
-                    <strong>Level:</strong> {{ membre.level }}<br>
-                    <strong>Points:</strong> {{ membre.points }}<br>
-                    <strong>Email:</strong> {{ membre.email }}
-                </p>
+<div class="container py-4">
+    <!-- Profile Header -->
+    <div class="row mb-4">
+        <div class="col-md-4 text-center">
+            <div class="profile-image-container">
+                <img src="{{ membre.profil.url }}" class="profile-image" alt="Profile Picture">
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card profile-header">
+                <div class="card-body">
+                    <h2 class="card-title mb-4">{{ membre.prenom }} {{ membre.nom }}</h2>
+                    <div class="row">
+                        <div class="col-md-4 stats-item">
+                            <div class="stats-icon">
+                                <i class="fas fa-trophy"></i>
+                            </div>
+                            <div class="stats-info">
+                                <h3>{{ membre.points }}</h3>
+                                <p>Total Points</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 stats-item">
+                            <div class="stats-icon">
+                                <i class="fas fa-star"></i>
+                            </div>
+                            <div class="stats-info">
+                                <h3>Level {{ membre.level }}</h3>
+                                <p>Current Level</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 stats-item">
+                            <div class="stats-icon">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="stats-info">
+                                <h3>{{ solved_count|default:0 }}</h3>
+                                <p>Problems Solved</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="col-md-8">
-        <h3>Recent Submissions</h3>
-        <div class="table-responsive">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Problem</th>
-                        <th>Status</th>
-                        <th>Time</th>
-                        <th>Submitted</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for submission in submissions %}
-                    <tr>
-                        <td>{{ submission.problem.title }}</td>
-                        <td>
-                            <span class="badge bg-{% if submission.status == 'S' %}success{% elif submission.status == 'F' %}danger{% else %}warning{% endif %}">
-                                {{ submission.get_status_display }}
-                            </span>
-                        </td>
-                        <td>{{ submission.execution_time|default_if_none:"-" }}s</td>
-                        <td>{{ submission.submission_time|date:"M d, Y H:i" }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" class="text-center">No submissions yet</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <!-- Progress Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title mb-4">Progress Overview</h4>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="progress-stat">
+                                <h5>Easy Problems</h5>
+                                <div class="progress">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         style="width: {{ easy_progress }}%">
+                                        {{ easy_solved }}/{{ easy_total }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="progress-stat">
+                                <h5>Medium Problems</h5>
+                                <div class="progress">
+                                    <div class="progress-bar bg-warning" role="progressbar" 
+                                         style="width: {{ medium_progress }}%">
+                                        {{ medium_solved }}/{{ medium_total }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="progress-stat">
+                                <h5>Hard Problems</h5>
+                                <div class="progress">
+                                    <div class="progress-bar bg-danger" role="progressbar" 
+                                         style="width: {{ hard_progress }}%">
+                                        {{ hard_solved }}/{{ hard_total }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title mb-4">Recent Submissions</h4>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Problem</th>
+                                    <th>Status</th>
+                                    <th>Time Taken</th>
+                                    <th>Submitted</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for submission in submissions %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'coding:problem_detail' submission.problem.id %}" class="problem-link">
+                                            {{ submission.problem.title }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if submission.status == 'S' %}bg-success{% elif submission.status == 'F' %}bg-danger{% else %}bg-warning{% endif %}">
+                                            {{ submission.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if submission.execution_time %}
+                                            <span class="{% if submission.execution_time > submission.problem.time_limit %}text-danger{% endif %}">
+                                                {{ submission.execution_time|floatformat:1 }}s
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ submission.submission_time|date:"M d, Y H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center">No submissions yet</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title mb-4">Contact Information</h4>
+                    <ul class="list-unstyled contact-info">
+                        <li>
+                            <i class="fas fa-envelope"></i>
+                            <span>{{ membre.email }}</span>
+                        </li>
+                        <li>
+                            <i class="fas fa-phone"></i>
+                            <span>{{ membre.telephone }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<style>
+    .profile-image-container {
+        position: relative;
+        width: 200px;
+        height: 200px;
+        margin: 0 auto;
+        border-radius: 50%;
+        border: 3px solid var(--gold);
+        overflow: hidden;
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+    }
+
+    .profile-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .profile-header {
+        background: linear-gradient(135deg, var(--dark-bg) 0%, var(--dark-card) 100%);
+        border: 1px solid var(--gold);
+    }
+
+    .stats-item {
+        text-align: center;
+        padding: 15px;
+        border-right: 1px solid rgba(255, 215, 0, 0.2);
+    }
+
+    .stats-item:last-child {
+        border-right: none;
+    }
+
+    .stats-icon {
+        font-size: 2rem;
+        color: var(--gold);
+        margin-bottom: 10px;
+    }
+
+    .stats-info h3 {
+        color: var(--text-light);
+        margin-bottom: 5px;
+    }
+
+    .stats-info p {
+        color: var(--text-gold);
+        margin: 0;
+    }
+
+    .progress-stat {
+        margin-bottom: 20px;
+    }
+
+    .progress-stat h5 {
+        color: var(--text-light);
+        margin-bottom: 10px;
+    }
+
+    .progress {
+        height: 25px;
+        background-color: var(--dark-bg);
+        border: 1px solid var(--gold);
+    }
+
+    .progress-bar {
+        line-height: 25px;
+        font-weight: bold;
+    }
+
+    .contact-info li {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+        color: var(--text-light);
+    }
+
+    .contact-info i {
+        color: var(--gold);
+        margin-right: 10px;
+        width: 20px;
+    }
+
+    .table {
+        color: var(--text-light);
+    }
+
+    .problem-link {
+        color: var(--gold);
+        text-decoration: none;
+        transition: all 0.3s ease;
+    }
+
+    .problem-link:hover {
+        color: var(--gold-hover);
+        text-decoration: underline;
+    }
+
+    .card {
+        background-color: var(--dark-card);
+        border: 1px solid var(--gold);
+        margin-bottom: 20px;
+    }
+
+    .card-title {
+        color: var(--gold);
+    }
+</style>
 {% endblock %}
