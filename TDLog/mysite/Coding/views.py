@@ -303,6 +303,30 @@ def execute_code(code, test_cases):
             os.remove(temp_file)
 
 @login_required
+def test_solution(request, problem_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            code = data.get('code')
+            problem = get_object_or_404(Problem, id=problem_id)
+            
+            # Execute code and return result
+            result = execute_code(code, problem.test_cases)
+            return JsonResponse({
+                'success': True,
+                'output': 'All test cases passed!' if result['passed'] else 'Some test cases failed. Keep trying!'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+
+@login_required
 def profile(request):
     membre = request.user.membre
     submissions = Submission.objects.filter(user=membre).order_by('-submission_time')
@@ -460,6 +484,18 @@ def run_test_cases(code_file, test_cases):
         'passed': all_passed,
         'output': '\n'.join(output)
     }
+
+
+def calculate_level(test_score):
+    """
+    Calculate user level based on test score
+    """
+    if test_score >= 90:
+        return 3  # Advanced
+    elif test_score >= 70:
+        return 2  # Intermediate
+    else:
+        return 1  # Beginner
 
 @login_required
 def problems_view(request):
