@@ -50,6 +50,84 @@ def execute_code(code, test_cases):
         if os.path.exists(temp_file):
             os.remove(temp_file)
 
+@login_required
+def profile(request):
+    membre = request.user.membre
+    submissions = Submission.objects.filter(user=membre).order_by('-submission_time')
+    return render(request, 'coding/profile.html', {
+        'membre': membre,
+        'submissions': submissions
+    })
+
+class UserRegistrationForm(forms.Form):
+    username = forms.CharField(max_length=150)
+    password1 = forms.CharField(widget=forms.PasswordInput)
+    password2 = forms.CharField(widget=forms.PasswordInput)
+    email = forms.EmailField()
+    nom = forms.CharField(max_length=50)
+    prenom = forms.CharField(max_length=50)
+    telephone = forms.CharField(max_length=20, required=False)
+    profile_image = forms.ImageField(required=False)
+
+    def clean_profile_image(self):
+        image = self.cleaned_data.get('profile_image')
+        if image:
+            w, h = get_image_dimensions(image)
+            if w > 4096 or h > 4096:
+                raise forms.ValidationError("Image is too large")
+            return image
+        return None
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        password1 = cleaned_data.get('password1')
+        password2 = cleaned_data.get('password2')
+        
+        if password1 and password2 and password1 != password2:
+            raise forms.ValidationError("Passwords don't match")
+        
+        # Check if username already exists
+        username = cleaned_data.get('username')
+        if User.objects.filter(username=username).exists():
+            raise forms.ValidationError("Username already exists")
+        
+        return cleaned_data
+
+def register(request):
+    if request.method == 'POST':
+        form = UserRegistrationForm(request.POST, request.FILES)
+        if form.is_valid():
+            # Create the user
+            user = User.objects.create_user(
+                username=form.cleaned_data['username'],
+                password=form.cleaned_data['password1'],
+                email=form.cleaned_data['email']
+            )
+            
+            # Get the profile image or use default
+            profile_image = form.cleaned_data.get('profile_image')
+            if not profile_image:
+                profile_image = 'default_profile.jpg'  # Make sure this file exists in your media folder
+            
+            # Create the associated Membre
+            Membre.objects.create(
+                user=user,
+                nom=form.cleaned_data['nom'],
+                prenom=form.cleaned_data['prenom'],
+                email=form.cleaned_data['email'],
+                telephone=form.cleaned_data.get('telephone', ''),
+                profil=profile_image,
+                level=0
+            )
+            
+            login(request, user)
+            messages.success(request, 'Registration successful! Please take the initial test.')
+            return redirect('coding:initial_test')
+    else:
+        form = UserRegistrationForm()
+    return render(request, 'coding/register.html', {'form': form})
+
+
 def run_test_cases(code_file, test_cases):
     all_passed = True
     output = []
