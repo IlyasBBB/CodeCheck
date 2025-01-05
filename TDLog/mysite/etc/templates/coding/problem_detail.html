@@ -1,0 +1,577 @@
+{% extends 'coding/base.html' %}
+{% load static %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-dark@4/dark.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<!-- CodeMirror CSS -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css" rel="stylesheet">
+
+<style>
+    .timer-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: var(--dark-card);
+        border: 2px solid var(--gold);
+        border-radius: 8px;
+        padding: 15px;
+        z-index: 1000;
+        text-align: center;
+        min-width: 120px;
+    }
+
+    .timer {
+        font-size: 24px;
+        font-weight: bold;
+        color: var(--gold);
+    }
+
+    .timer.warning {
+        color: #ffc107;
+        animation: pulse 1s infinite;
+    }
+
+    .timer.danger {
+        color: #dc3545;
+        animation: pulse 0.5s infinite;
+    }
+
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Problem Description (Left Side) -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title">{{ problem.title }}</h3>
+                    <div class="problem-info mb-3">
+                        <span class="badge bg-{{ problem.difficulty }}">
+                            {{ problem.get_difficulty_display }}
+                        </span>
+                        <span class="badge bg-warning text-dark ms-2">
+                            {{ problem.points }} Points
+                        </span>
+                    </div>
+                    <div class="problem-description mb-4">
+                        {{ problem.description|linebreaks }}
+                    </div>
+                    <div class="test-cases">
+                        <h5>Test Cases:</h5>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-dark">
+                                <thead>
+                                    <tr>
+                                        <th>Input</th>
+                                        <th>Expected Output</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="testCasesDisplay">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Code Editor (Right Side) -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title">Your Solution</h3>
+                    <div id="editor-container">
+                        <textarea id="code-editor" class="form-control" rows="15">{{ problem.solution_template }}</textarea>
+                    </div>
+                    <div class="mt-3">
+                        <button id="submitCode" class="btn btn-primary">Submit Solution</button>
+                        <button id="testCode" class="btn btn-secondary ms-2">Test Code</button>
+                        <button id="giveUpBtn" class="btn btn-danger ms-2">Give Up</button>
+                    </div>
+                    <div id="output" class="mt-3">
+                        <pre class="bg-dark text-light p-3 rounded" style="display: none;"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Timer Container -->
+<div class="timer-container">
+    <div class="timer" id="timer">{{ problem.time_limit }}s</div>
+    <small class="text-muted">Time Remaining</small>
+</div>
+
+<style>
+    .CodeMirror {
+        height: 400px;
+        border: 1px solid var(--gold);
+        border-radius: 4px;
+    }
+
+    .test-cases {
+        margin-top: 20px;
+        background-color: var(--dark-card);
+        border-radius: 8px;
+        padding: 20px;
+    }
+
+    .test-cases h5 {
+        color: var(--gold);
+        margin-bottom: 15px;
+    }
+
+    .test-cases .table {
+        margin-bottom: 0;
+        background-color: var(--dark-bg);
+    }
+
+    .test-cases .table th {
+        background-color: var(--dark-card);
+        color: var(--gold);
+        border-color: var(--gold);
+    }
+
+    .test-cases .table td {
+        border-color: var(--gold);
+    }
+
+    .test-cases code {
+        background-color: var(--dark-bg);
+        color: var(--text-light);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+    }
+
+    /* Ensure table is responsive */
+    .table-responsive {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    /* Style scrollbar for webkit browsers */
+    .table-responsive::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .table-responsive::-webkit-scrollbar-track {
+        background: var(--dark-bg);
+    }
+
+    .table-responsive::-webkit-scrollbar-thumb {
+        background: var(--gold);
+        border-radius: 4px;
+    }
+
+    .table-responsive::-webkit-scrollbar-thumb:hover {
+        background: var(--gold-hover);
+    }
+
+    .badge.bg-easy { background-color: #28a745 !important; }
+    .badge.bg-medium { background-color: #ffc107 !important; }
+    .badge.bg-hard { background-color: #dc3545 !important; }
+
+    #output pre {
+        background-color: var(--dark-card) !important;
+        border: 1px solid var(--gold);
+    }
+
+    .btn-danger {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background-color: #bb2d3b;
+        border-color: #b02a37;
+    }
+
+    /* Add these styles for the SweetAlert dark theme */
+    .swal2-popup.swal-dark {
+        background-color: var(--dark-card);
+        color: var(--text-light);
+    }
+
+    .swal2-popup.swal-dark .swal2-title,
+    .swal2-popup.swal-dark .swal2-content {
+        color: var(--text-light);
+    }
+
+    .swal2-popup.swal-dark ul {
+        list-style-type: none;
+        padding-left: 0;
+    }
+
+    .swal2-popup.swal-dark ul li {
+        margin-bottom: 8px;
+        padding-left: 24px;
+        position: relative;
+    }
+
+    .swal2-popup.swal-dark ul li:before {
+        content: "•";
+        position: absolute;
+        left: 8px;
+        color: var(--gold);
+    }
+
+    .text-muted {
+        color: #6c757d !important;
+        font-size: 0.875rem;
+        text-align: center;
+        background-color: rgba(0, 0, 0, 0.2);
+    }
+
+    .text-muted i {
+        margin-right: 5px;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Get problem ID from template
+    const problemId = {{ problem.id }};
+    
+    // Initialize CodeMirror
+    const editor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
+        lineNumbers: true,
+        mode: "python",
+        theme: "monokai",
+        indentUnit: 4,
+        autoCloseBrackets: true,
+        matchBrackets: true
+    });
+
+    function displayTestCases(testCasesJson) {
+        const testCasesDisplay = document.getElementById('testCasesDisplay');
+        try {
+            const testCases = JSON.parse(testCasesJson.replace(/&quot;/g, '"'));
+            // Only show the second test case (index 1)
+            if (testCases.length > 1) {
+                const secondCase = testCases[1];
+                testCasesDisplay.innerHTML = `
+                    <tr>
+                        <td><code>${secondCase.input}</code></td>
+                        <td><code>${secondCase.expected}</code></td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" class="text-muted">
+                            <small><i class="fas fa-info-circle"></i> Other test cases are hidden to prevent hardcoding</small>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                testCasesDisplay.innerHTML = '<tr><td colspan="2">Test cases are hidden</td></tr>';
+            }
+        } catch (e) {
+            console.error('Error parsing test cases:', e);
+            testCasesDisplay.innerHTML = '<tr><td colspan="2" class="text-danger">Error displaying test cases</td></tr>';
+        }
+    }
+
+    // Initialize test cases
+    displayTestCases('{{ problem.test_cases|escapejs }}');
+
+    let timeLimit = {{ problem.time_limit }};
+    let timeRemaining = timeLimit;
+    let timerInterval;
+    const timerElement = document.getElementById('timer');
+    const submitButton = document.getElementById('submitCode');
+    let hasSubmitted = false;
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            timeRemaining--;
+            updateTimerDisplay();
+
+            if (timeRemaining <= 0) {
+                clearInterval(timerInterval);
+                handleTimeUp();
+            } else if (timeRemaining <= 30) {
+                timerElement.classList.add('danger');
+            } else if (timeRemaining <= 60) {
+                timerElement.classList.add('warning');
+            }
+        }, 1000);
+    }
+
+    function updateTimerDisplay() {
+        const minutes = Math.floor(timeRemaining / 60);
+        const seconds = timeRemaining % 60;
+        timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    function handleTimeUp() {
+        if (!hasSubmitted) {
+            Swal.fire({
+                title: 'Time\'s Up!',
+                text: 'You\'ll lose points for exceeding the time limit.',
+                icon: 'warning',
+                confirmButtonText: 'Submit Anyway'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    submitSolution(true);
+                }
+            });
+        }
+    }
+
+    async function submitSolution(isTimeUp = false) {
+        if (hasSubmitted) return;
+        
+        hasSubmitted = true;
+        const code = editor.getValue();
+        const outputPre = document.querySelector('#output pre');
+        outputPre.style.display = 'block';
+        outputPre.textContent = 'Running...';
+
+        try {
+            const response = await fetch('{% url "coding:submit_solution" problem.id %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ 
+                    code: code,
+                    time_taken: timeLimit - timeRemaining,
+                    time_exceeded: isTimeUp
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                outputPre.textContent = data.output;
+                if (data.passed) {
+                    let message = `You earned ${data.points} points!`;
+                    let icon = 'success';
+                    
+                    if (data.level_up) {
+                        message += `\nCongratulations! You've reached Level ${data.new_level}!`;
+                        icon = 'success';
+                    } else if (data.level_down) {
+                        message += `\nYou've dropped to Level ${data.new_level}.`;
+                        icon = 'warning';
+                    }
+                    
+                    Swal.fire({
+                        title: data.passed ? 'Success!' : 'Almost there!',
+                        text: message,
+                        icon: icon,
+                        confirmButtonText: 'Continue'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = '{% url "coding:problems" %}';
+                        }
+                    });
+                }
+            } else {
+                outputPre.textContent = data.error || 'An error occurred';
+            }
+        } catch (error) {
+            outputPre.textContent = 'Error: ' + error.message;
+        }
+    }
+
+    // Start timer when page loads
+    startTimer();
+
+    // Update submit button click handler
+    submitButton.addEventListener('click', () => submitSolution(false));
+
+    // Test code
+    document.getElementById('testCode').addEventListener('click', async function() {
+        const code = editor.getValue();
+        const outputPre = document.querySelector('#output pre');
+        outputPre.style.display = 'block';
+        outputPre.textContent = 'Testing...';
+
+        try {
+            const response = await fetch('{% url "coding:test_solution" problem.id %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ code: code })
+            });
+
+            const data = await response.json();
+            outputPre.textContent = data.output;
+        } catch (error) {
+            outputPre.textContent = 'Error: ' + error.message;
+        }
+    });
+
+    // Add Give Up button handler
+    const giveUpBtn = document.getElementById('giveUpBtn');
+    giveUpBtn.addEventListener('click', async () => {
+        const result = await Swal.fire({
+            title: 'Are you sure you want to give up?',
+            html: `
+                <div class="text-start">
+                    <p class="mb-3">If you give up:</p>
+                    <ul>
+                        <li class="text-danger fw-bold">20 points will be deducted from your score</li>
+                        <li>This attempt will be marked as failed</li>
+                        <li>You can try this problem again later</li>
+                    </ul>
+                </div>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, give up',
+            cancelButtonText: 'No, continue trying',
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            customClass: {
+                popup: 'swal-dark',
+                content: 'text-start'
+            }
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const response = await fetch(`/problem/${problemId}/give-up/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    let message = '20 points have been deducted from your score.';
+                    if (data.level_down) {
+                        message += `\nYou've dropped to Level ${data.new_level}.`;
+                    }
+                    
+                    await Swal.fire({
+                        title: 'Problem Abandoned',
+                        text: message,
+                        icon: 'warning',
+                        confirmButtonText: 'Return to Problems'
+                    });
+                    window.location.href = '/problems/';
+                } else {
+                    throw new Error(data.error || 'Failed to give up problem');
+                }
+            } catch (error) {
+                Swal.fire({
+                    title: 'Error',
+                    text: error.message,
+                    icon: 'error'
+                });
+            }
+        }
+    });
+
+    // Submit code handler
+    document.getElementById('submitCode').addEventListener('click', async function() {
+        const code = editor.getValue();
+        const outputPre = document.querySelector('#output pre');
+        outputPre.style.display = 'block';
+        outputPre.textContent = 'Running...';
+
+        try {
+            const response = await fetch('{% url "coding:submit_solution" problem.id %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ 
+                    code: code,
+                    time_taken: timeLimit - timeRemaining,
+                    time_exceeded: timeRemaining <= 0
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                outputPre.textContent = data.output;
+                if (data.passed) {
+                    hasSubmitted = true;
+                    clearInterval(timerInterval);
+                    
+                    let message = `Congratulations! You've successfully solved this problem!\nYou earned ${data.points} points!`;
+                    if (data.level_up) {
+                        message += `\nYou've reached Level ${data.new_level}!`;
+                    }
+                    
+                    Swal.fire({
+                        title: 'Success!',
+                        text: message,
+                        icon: 'success',
+                        confirmButtonText: 'Continue'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = '{% url "coding:problems" %}';
+                        }
+                    });
+                } else {
+                    outputPre.textContent = 'Some test cases failed. Keep trying!';
+                }
+            } else {
+                outputPre.textContent = data.error || 'An error occurred';
+            }
+        } catch (error) {
+            console.error('Submission error:', error);
+            outputPre.textContent = 'Error: ' + error.message;
+        }
+    });
+
+    // Test code handler
+    document.getElementById('testCode').addEventListener('click', async function() {
+        const code = editor.getValue();
+        const outputPre = document.querySelector('#output pre');
+        outputPre.style.display = 'block';
+        outputPre.textContent = 'Testing...';
+
+        try {
+            const response = await fetch(`/problem/${problemId}/test/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ code: code })
+            });
+
+            const data = await response.json();
+            outputPre.textContent = data.output;
+        } catch (error) {
+            console.error('Test error:', error);
+            outputPre.textContent = 'Error: ' + error.message;
+        }
+    });
+});
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<!-- CodeMirror JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+<script>
+// ... rest of your JavaScript code ...
+</script>
+{% endblock %}
