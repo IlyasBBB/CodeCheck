@@ -510,7 +510,7 @@ def execute_code(code, test_cases):
 
 def _limit_resources():  # runs in the child process, POSIX only
     import resource
-    resource.setrlimit(resource.RLIMIT_CPU, (5, 5))
+    resource.setrlimit(resource.RLIMIT_CPU, (10, 10))  # above the 5 s wall-clock timeout
     resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
     resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
 
@@ -579,6 +579,9 @@ def run_test_cases(code_file, test_cases):
                     else:
                         all_passed = False
                         output.append(f"❌ Test case {i} failed: Input={input_data}, Expected={expected}, Got={actual_output}")
+                elif result.returncode < 0:
+                    all_passed = False
+                    output.append(f"❌ Test case {i} stopped: time or memory limit exceeded")
                 else:
                     all_passed = False
                     output.append(f"❌ Test case {i} error: {result.stderr}")
