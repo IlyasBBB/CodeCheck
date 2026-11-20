@@ -11,6 +11,6 @@ class InitialTestMiddleware:
             current_url = resolve(request.path_info).url_name
             membre = getattr(request.user, 'membre', None)
             if current_url == 'initial_test' and membre and membre.has_completed_initial_test:
-                messages.warning(request, 'Vous avez déjà complété le test initial.')
+                messages.warning(request, 'You have already completed the initial test.')
                 return redirect('coding:problems')
         return self.get_response(request)

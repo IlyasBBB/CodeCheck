@@ -102,7 +102,7 @@ class InitialTestTests(TestCase):
         forged = [{"id": q.id, "points": q.points} for q in InitialTest.objects.all()]
         rep = self.client.post(reverse("coding:complete_initial_test"), json.dumps({"solved_questions": forged}),
                                content_type="application/json").json()
-        self.assertEqual((rep["points"], rep["level"]), (0, "Débutant"))
+        self.assertEqual((rep["points"], rep["level"]), (0, "Beginner"))
 
     def test_score_counts_questions_passed_on_the_server(self):
         self.client.post(reverse("coding:submit_initial_test"),

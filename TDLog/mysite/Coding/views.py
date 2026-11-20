@@ -195,7 +195,8 @@ def submit_initial_test(request):
             else:
                 return JsonResponse({
                     'success': False,
-                    'output': result['output']
+                    'output': result['output'],
+                    'cases': case_results(result['output']),
                 })
 
         except Exception as e:
@@ -260,7 +261,8 @@ def submit_solution(request, problem_id):
                     'success': True,
                     'passed': True,
                     'points': points_earned,
-                    'output': 'All test cases passed!'
+                    'output': 'All test cases passed!',
+                    'cases': case_results(result['output']),
                 }
 
                 if level_changed:
@@ -285,7 +287,8 @@ def submit_solution(request, problem_id):
                 return JsonResponse({
                     'success': True,
                     'passed': False,
-                    'output': 'Some test cases failed. Keep trying!'
+                    'output': 'Some test cases failed. Keep trying!',
+                    'cases': case_results(result['output']),
                 })
 
         except Exception as e:
@@ -311,7 +314,9 @@ def test_solution(request, problem_id):
             result = execute_code(code, problem.test_cases)
             return JsonResponse({
                 'success': True,
-                'output': 'All test cases passed!' if result['passed'] else 'Some test cases failed. Keep trying!'
+                'passed': result['passed'],
+                'output': 'All test cases passed!' if result['passed'] else 'Some test cases failed. Keep trying!',
+                'cases': case_results(result['output']),
             })
 
         except Exception as e:
@@ -347,7 +352,14 @@ def profile(request):
     medium_progress = (medium_solved / medium_total * 100) if medium_total > 0 else 0
     hard_progress = (hard_solved / hard_total * 100) if hard_total > 0 else 0
 
+    progress_rows = [
+        (label, solved, total, [i < solved for i in range(total)])
+        for label, solved, total in (('Easy', easy_solved, easy_total), ('Medium', medium_solved, medium_total),
+                                     ('Hard', hard_solved, hard_total))
+    ]
+
     context = {
+        'progress_rows': progress_rows,
         'membre': membre,
         'submissions': submissions,
         'solved_count': solved_count,
@@ -457,6 +469,11 @@ def login_view(request):
 def logout_view(request):
     logout(request)
     return redirect('coding:home')
+
+def case_results(output):
+    """True/False for each test case, read from the runner output (one line per case)."""
+    return [line.startswith('✅') for line in output.splitlines() if line[:1] in ('✅', '❌')]
+
 
 def execute_code(code, test_cases):
     temp_file = None
@@ -590,9 +607,14 @@ def problems_view(request):
     if not request.user.membre.has_completed_initial_test:
         return redirect('coding:initial_test')
 
-    # Get all domains and print debug info
-    domains = Domain.objects.all()
-
+    solved = set(Submission.objects.filter(user=request.user.membre, status='S').values_list('problem_id', flat=True))
+    domains = []
+    for domain in Domain.objects.prefetch_related('problems'):
+        problems = [p for p in domain.problems.all() if p.is_active]
+        for p in problems:
+            p.solved = p.id in solved
+        if problems:
+            domains.append({'domain': domain, 'problems': problems, 'solved': sum(p.solved for p in problems)})
     return render(request, 'coding/problems.html', {'domains': domains})
 
 @login_required
@@ -639,7 +661,7 @@ def complete_initial_test(request):
     if request.user.membre.has_completed_initial_test:
         return JsonResponse({
             'success': False,
-            'error': 'Test initial déjà complété',
+            'error': 'Initial test already completed',
             'redirect_url': reverse('coding:problems')
         })
 
@@ -656,10 +678,10 @@ def complete_initial_test(request):
                 level_message = "Expert"
             elif score_percentage >= 50:
                 level = 2
-                level_message = "Intermédiaire"
+                level_message = "Intermediate"
             else:
                 level = 1
-                level_message = "Débutant"
+                level_message = "Beginner"
 
             # Update user's profile
             membre = request.user.membre
@@ -674,7 +696,7 @@ def complete_initial_test(request):
                 'level': level_message,
                 'points': total_points,
                 'redirect_url': reverse('coding:problems'),
-                'message': f"Test initial terminé! Niveau atteint: {level_message}"
+                'message': f"Initial test finished. Level: {level_message}"
             })
 
         except Exception as e:
