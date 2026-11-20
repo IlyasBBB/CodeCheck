@@ -104,7 +104,7 @@ class Command(BaseCommand):
         for i in range(30):
             problem_data = problems_data[i % len(problems_data)]  # Cycle through sample problems
             modified_title = f"{problem_data['title']} {i+1}"  # Make titles unique
-            
+
             Problem.objects.get_or_create(
                 title=modified_title,
                 defaults={
@@ -117,4 +117,4 @@ class Command(BaseCommand):
                 }
             )
 
-        self.stdout.write(self.style.SUCCESS('Successfully created sample data')) 
+        self.stdout.write(self.style.SUCCESS('Successfully created sample data'))

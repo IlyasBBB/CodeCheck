@@ -9,7 +9,8 @@ class InitialTestMiddleware:
     def __call__(self, request):
         if request.user.is_authenticated:
             current_url = resolve(request.path_info).url_name
-            if current_url == 'initial_test' and request.user.membre.has_completed_initial_test:
+            membre = getattr(request.user, 'membre', None)
+            if current_url == 'initial_test' and membre and membre.has_completed_initial_test:
                 messages.warning(request, 'Vous avez déjà complété le test initial.')
                 return redirect('coding:problems')
-        return self.get_response(request) 
+        return self.get_response(request)

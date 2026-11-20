@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+db.sqlite3
+media/uploads/
+!media/uploads/Membre/default_profile.jpg
+staticfiles/
+.env
+.ruff_cache/
+.impeccable/

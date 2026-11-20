@@ -1,6 +1,5 @@
 from django.contrib import admin
 
-from django.contrib import admin
 from .models import InitialTest, Membre, Domain, Problem
 import json
 
