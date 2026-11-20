@@ -1,6 +1,5 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from math import floor
 
@@ -17,13 +16,13 @@ class Membre(models.Model):
     has_completed_initial_test = models.BooleanField(default=False)
 
     def update_level(self):
-     
+
         if self.points < 100:
             new_level = 0
         else:
             # Calculate level based on points
             new_level = max(0, floor((self.points - 100) / 300) + 1)
-        
+
         # Check if level changed
         if new_level != self.level:
             old_level = self.level
@@ -79,8 +78,8 @@ class Problem(models.Model):
     description = models.TextField()
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES)
     domain = models.ForeignKey(
-        Domain, 
-        on_delete=models.CASCADE, 
+        Domain,
+        on_delete=models.CASCADE,
         related_name='problems',
         default=Domain.get_default_domain
     )
@@ -124,7 +123,7 @@ class InitialTest(models.Model):
         (2, 'Medium'),
         (3, 'Hard')
     ]
-    
+
     question = models.TextField()
     test_cases = models.TextField()
     points = models.IntegerField(default=10)

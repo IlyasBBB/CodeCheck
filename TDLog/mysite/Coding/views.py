@@ -2,18 +2,19 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import login, logout, authenticate
-from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django import forms
-from .models import *
 import json
+import os
+import subprocess
+import sys
+import tempfile
+
 from django.core.files.images import get_image_dimensions
 from django.http import JsonResponse
-import subprocess
-import tempfile
-import os
-from django.conf import settings
 from django.urls import reverse
+
+from .models import Domain, InitialTest, Membre, Problem, Submission
 
 def home(request):
     return render(request, 'coding/home.html')
@@ -23,10 +24,10 @@ def take_initial_test(request):
     # If user has already completed the test, redirect to problems
     if request.user.membre.has_completed_initial_test:
         return redirect('coding:problems')
-    
+
     # Create initial test questions if none exist
     create_default_questions()
-    
+
     # Get questions and render the test
     questions = InitialTest.objects.all()
     questions_json = [{
@@ -36,7 +37,7 @@ def take_initial_test(request):
         'points': q.points,
         'difficulty': q.difficulty
     } for q in questions]
-    
+
     return render(request, 'coding/initial_test.html', {
         'questions': questions,
         'questions_json': json.dumps(questions_json)
@@ -79,7 +80,7 @@ def create_default_questions():
                 "difficulty": 1,
                 "points": 10
             },
-            
+
             # Medium Questions (Difficulty 2)
             {
                 "question": "Write a function that returns the factorial of a number.",
@@ -111,7 +112,7 @@ def create_default_questions():
                 "difficulty": 2,
                 "points": 20
             },
-            
+
             # Hard Questions (Difficulty 3)
             {
                 "question": "Write a function that returns the GCD (Greatest Common Divisor) of two numbers.",
@@ -174,14 +175,18 @@ def submit_initial_test(request):
             data = json.loads(request.body)
             code = data.get('code')
             question_id = data.get('question_id')
-            
+
             # Get the question
             question = get_object_or_404(InitialTest, id=question_id)
-            
+
             # Execute code and check result
             result = execute_code(code, question.test_cases)
-            
+
             if result['passed']:
+                # The initial test score is computed from this list, never from the browser.
+                passed = set(request.session.get('initial_test_passed', []))
+                passed.add(question.id)
+                request.session['initial_test_passed'] = sorted(passed)
                 return JsonResponse({
                     'success': True,
                     'output': 'Test cases passed! Moving to next question...',
@@ -190,22 +195,17 @@ def submit_initial_test(request):
             else:
                 return JsonResponse({
                     'success': False,
-                    'output': result['output']
+                    'output': result['output'],
+                    'cases': case_results(result['output']),
                 })
-                
+
         except Exception as e:
             return JsonResponse({
                 'success': False,
                 'output': f'Error: {str(e)}'
             })
-    
-    return JsonResponse({'success': False, 'output': 'Invalid request'})
 
-@login_required
-def problem_list(request):
-    membre = request.user.membre
-    problems = Problem.objects.filter(difficulty=membre.level)
-    return render(request, 'coding/problem_list.html', {'problems': problems})
+    return JsonResponse({'success': False, 'output': 'Invalid request'})
 
 @login_required
 def problem_detail(request, problem_id):
@@ -223,17 +223,23 @@ def submit_solution(request, problem_id):
             time_taken = data.get('time_taken', 0)
             time_exceeded = data.get('time_exceeded', False)
             problem = get_object_or_404(Problem, id=problem_id)
-            
+
             # Execute code and check result
             result = execute_code(code, problem.test_cases)
-            
+
+            already_solved = Submission.objects.filter(
+                user=request.user.membre, problem=problem, status='S'
+            ).exists()
+
             if result['passed']:
-                # Calculate points based on time
-                if time_exceeded:
+                # Calculate points based on time; a problem already solved earns nothing more
+                if already_solved:
+                    points_earned = 0
+                elif time_exceeded:
                     points_earned = max(0, problem.points - problem.penalty_points)
                 else:
                     points_earned = problem.points
-                
+
                 # Create successful submission
                 Submission.objects.create(
                     user=request.user.membre,
@@ -242,22 +248,23 @@ def submit_solution(request, problem_id):
                     status='S',
                     execution_time=time_taken
                 )
-                
+
                 # Update user points and check level
                 membre = request.user.membre
                 membre.points += points_earned
                 membre.save()
-                
+
                 # Check for level change
                 level_changed, old_level, new_level = membre.update_level()
-                
+
                 response_data = {
                     'success': True,
                     'passed': True,
                     'points': points_earned,
-                    'output': 'All test cases passed!'
+                    'output': 'All test cases passed!',
+                    'cases': case_results(result['output']),
                 }
-                
+
                 if level_changed:
                     if new_level > old_level:
                         response_data['level_up'] = True
@@ -265,7 +272,7 @@ def submit_solution(request, problem_id):
                     else:
                         response_data['level_down'] = True
                         response_data['new_level'] = new_level
-                
+
                 return JsonResponse(response_data)
             else:
                 # Create failed submission
@@ -276,19 +283,20 @@ def submit_solution(request, problem_id):
                     status='F',
                     execution_time=time_taken
                 )
-                
+
                 return JsonResponse({
                     'success': True,
                     'passed': False,
-                    'output': 'Some test cases failed. Keep trying!'
+                    'output': 'Some test cases failed. Keep trying!',
+                    'cases': case_results(result['output']),
                 })
-                
+
         except Exception as e:
             return JsonResponse({
                 'success': False,
                 'error': str(e)
             })
-    
+
     return JsonResponse({
         'success': False,
         'error': 'Invalid request method'
@@ -301,48 +309,57 @@ def test_solution(request, problem_id):
             data = json.loads(request.body)
             code = data.get('code')
             problem = get_object_or_404(Problem, id=problem_id)
-            
+
             # Execute code and return result
             result = execute_code(code, problem.test_cases)
             return JsonResponse({
                 'success': True,
-                'output': 'All test cases passed!' if result['passed'] else 'Some test cases failed. Keep trying!'
+                'passed': result['passed'],
+                'output': 'All test cases passed!' if result['passed'] else 'Some test cases failed. Keep trying!',
+                'cases': case_results(result['output']),
             })
-            
+
         except Exception as e:
             return JsonResponse({
                 'success': False,
                 'error': str(e)
             })
-    
+
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
 @login_required
 def profile(request):
     membre = request.user.membre
     submissions = Submission.objects.filter(user=membre).order_by('-submission_time')[:10]
-    
+
     # Calculate problem statistics
     solved_problems = Submission.objects.filter(user=membre, status='S').values('problem').distinct()
     solved_count = solved_problems.count()
-    
+
     # Calculate progress for each difficulty level
     problems = Problem.objects.all()
-    
+
     easy_total = problems.filter(difficulty='easy').count()
     medium_total = problems.filter(difficulty='medium').count()
     hard_total = problems.filter(difficulty='hard').count()
-    
+
     easy_solved = solved_problems.filter(problem__difficulty='easy').count()
     medium_solved = solved_problems.filter(problem__difficulty='medium').count()
     hard_solved = solved_problems.filter(problem__difficulty='hard').count()
-    
+
     # Calculate percentages
     easy_progress = (easy_solved / easy_total * 100) if easy_total > 0 else 0
     medium_progress = (medium_solved / medium_total * 100) if medium_total > 0 else 0
     hard_progress = (hard_solved / hard_total * 100) if hard_total > 0 else 0
-    
+
+    progress_rows = [
+        (label, solved, total, [i < solved for i in range(total)])
+        for label, solved, total in (('Easy', easy_solved, easy_total), ('Medium', medium_solved, medium_total),
+                                     ('Hard', hard_solved, hard_total))
+    ]
+
     context = {
+        'progress_rows': progress_rows,
         'membre': membre,
         'submissions': submissions,
         'solved_count': solved_count,
@@ -356,7 +373,7 @@ def profile(request):
         'medium_progress': medium_progress,
         'hard_progress': hard_progress,
     }
-    
+
     return render(request, 'coding/profile.html', context)
 
 class UserRegistrationForm(forms.Form):
@@ -382,15 +399,15 @@ class UserRegistrationForm(forms.Form):
         cleaned_data = super().clean()
         password1 = cleaned_data.get('password1')
         password2 = cleaned_data.get('password2')
-        
+
         if password1 and password2 and password1 != password2:
             raise forms.ValidationError("Passwords don't match")
-        
+
         # Check if username already exists
         username = cleaned_data.get('username')
         if User.objects.filter(username=username).exists():
             raise forms.ValidationError("Username already exists")
-        
+
         return cleaned_data
 
 def register(request):
@@ -403,23 +420,19 @@ def register(request):
                 password=form.cleaned_data['password1'],
                 email=form.cleaned_data['email']
             )
-            
-            # Get the profile image or use default
-            profile_image = form.cleaned_data.get('profile_image')
-            if not profile_image:
-                profile_image = 'default_profile.jpg'  # Make sure this file exists in your media folder
-            
-            # Create the associated Membre
-            Membre.objects.create(
+
+            membre = Membre(
                 user=user,
                 nom=form.cleaned_data['nom'],
                 prenom=form.cleaned_data['prenom'],
                 email=form.cleaned_data['email'],
                 telephone=form.cleaned_data.get('telephone', ''),
-                profil=profile_image,
                 level=0
             )
-            
+            if form.cleaned_data.get('profile_image'):
+                membre.profil = form.cleaned_data['profile_image']
+            membre.save()
+
             login(request, user)
             messages.success(request, 'Registration successful! Please take the initial test.')
             return redirect('coding:initial_test')
@@ -432,24 +445,24 @@ def login_view(request):
         username = request.POST.get('username')
         password = request.POST.get('password')
         user = authenticate(request, username=username, password=password)
-        
+
         if user is not None:
             login(request, user)
-            
+
             # Check if user has a membre profile and hasn't taken the test yet
             try:
                 membre = user.membre
-                if membre.level == 0:  # User hasn't taken the test yet
+                if not membre.has_completed_initial_test:
                     messages.info(request, 'Please complete your initial test to continue.')
                     return redirect('coding:initial_test')
                 else:
                     return redirect('coding:problems')  # User has taken the test
-            except:
+            except Membre.DoesNotExist:
                 messages.error(request, 'User profile not found.')
                 return redirect('coding:home')
         else:
             messages.error(request, 'Invalid username or password.')
-    
+
     return render(request, 'coding/login.html')
 
 @login_required
@@ -457,18 +470,24 @@ def logout_view(request):
     logout(request)
     return redirect('coding:home')
 
+def case_results(output):
+    """True/False for each test case, read from the runner output (one line per case)."""
+    return [line.startswith('✅') for line in output.splitlines() if line[:1] in ('✅', '❌')]
+
+
 def execute_code(code, test_cases):
+    temp_file = None
     try:
         # Parse test cases if they're in string format
         if isinstance(test_cases, str):
             test_cases = json.loads(test_cases)
-        
+
         # Create a temporary file for the code using raw string for path
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
             # Write the user's solution function
             f.write(code + '\n\n')
             temp_file = f.name.replace('\\', '/')  # Convert backslashes to forward slashes
-        
+
         # Run test cases
         test_results = run_test_cases(temp_file, test_cases)
         return test_results
@@ -485,8 +504,16 @@ def execute_code(code, test_cases):
         }
     finally:
         # Clean up the temporary file
-        if os.path.exists(temp_file):
+        if temp_file and os.path.exists(temp_file):
             os.remove(temp_file)
+
+
+def _limit_resources():  # runs in the child process, POSIX only
+    import resource
+    resource.setrlimit(resource.RLIMIT_CPU, (10, 10))  # above the 5 s wall-clock timeout
+    resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
+    resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
+
 
 def run_test_cases(code_file, test_cases):
     all_passed = True
@@ -496,14 +523,14 @@ def run_test_cases(code_file, test_cases):
         # If test_cases is a string, try to parse it as JSON
         if isinstance(test_cases, str):
             test_cases = json.loads(test_cases)
-        
+
         # If test_cases is a single test case, wrap it in a list
         if isinstance(test_cases, dict):
             test_cases = [test_cases]
-        
+
         # If test_cases is a list of strings, convert to dict format
         if test_cases and isinstance(test_cases[0], str):
-            test_cases = [{"input": test, "expected": test_cases[i+1]} 
+            test_cases = [{"input": test, "expected": test_cases[i+1]}
                          for i, test in enumerate(test_cases[::2])]
 
         for i, test in enumerate(test_cases, 1):
@@ -531,22 +558,30 @@ def run_test_cases(code_file, test_cases):
 
             try:
                 # Execute the test
+                # shortcut: this limits the damage user code can do but is not a sandbox;
+                # run it in a container or a dedicated judge before opening the platform to strangers.
                 result = subprocess.run(
-                    ['python', test_file],
+                    [sys.executable, '-I', test_file],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5,
+                    cwd=tempfile.gettempdir(),
+                    env={'PATH': os.environ.get('PATH', ''), 'SYSTEMROOT': os.environ.get('SYSTEMROOT', '')},
+                    preexec_fn=_limit_resources if os.name == 'posix' else None,
                 )
 
                 # Compare output with expected result
                 actual_output = result.stdout.strip()
-                
+
                 if result.returncode == 0:
                     if actual_output == expected:
                         output.append(f"✅ Test case {i} passed: Input={input_data}, Expected={expected}")
                     else:
                         all_passed = False
                         output.append(f"❌ Test case {i} failed: Input={input_data}, Expected={expected}, Got={actual_output}")
+                elif result.returncode < 0:
+                    all_passed = False
+                    output.append(f"❌ Test case {i} stopped: time or memory limit exceeded")
                 else:
                     all_passed = False
                     output.append(f"❌ Test case {i} error: {result.stderr}")
@@ -569,39 +604,29 @@ def run_test_cases(code_file, test_cases):
         'output': '\n'.join(output)
     }
 
-def calculate_level(test_score):
-    """
-    Calculate user level based on test score
-    """
-    if test_score >= 90:
-        return 3  # Advanced
-    elif test_score >= 70:
-        return 2  # Intermediate
-    else:
-        return 1  # Beginner
-
-
 @login_required
 def problems_view(request):
     # First, check if user has completed initial test
     if not request.user.membre.has_completed_initial_test:
         return redirect('coding:initial_test')
-    
-    # Get all domains and print debug info
-    domains = Domain.objects.all()
-    print(f"Available domains: {[{'id': d.id, 'name': d.name} for d in domains]}")
-    
+
+    solved = set(Submission.objects.filter(user=request.user.membre, status='S').values_list('problem_id', flat=True))
+    domains = []
+    for domain in Domain.objects.prefetch_related('problems'):
+        problems = [p for p in domain.problems.all() if p.is_active]
+        for p in problems:
+            p.solved = p.id in solved
+        if problems:
+            domains.append({'domain': domain, 'problems': problems, 'solved': sum(p.solved for p in problems)})
     return render(request, 'coding/problems.html', {'domains': domains})
 
 @login_required
 def get_domain_problems(request, domain_id):
     try:
         domain = Domain.objects.get(id=domain_id)
-        print(f"Found domain: {domain.name} (ID: {domain.id})")
-        
+
         problems = Problem.objects.filter(domain=domain, is_active=True)
-        print(f"Found {problems.count()} problems for domain {domain.name}")
-        
+
         problems_data = [{
             'id': p.id,
             'title': p.title,
@@ -614,22 +639,20 @@ def get_domain_problems(request, domain_id):
                 status='S'
             ).exists()
         } for p in problems]
-        
+
         return JsonResponse({
             'success': True,
             'domain_name': domain.name,
             'problems': problems_data,
             'count': len(problems_data)
         })
-        
+
     except Domain.DoesNotExist:
-        print(f"Domain with ID {domain_id} not found")
         return JsonResponse({
             'success': False,
             'error': f'Domain with ID {domain_id} not found'
         }, status=404)
     except Exception as e:
-        print(f"Error: {str(e)}")
         return JsonResponse({
             'success': False,
             'error': str(e)
@@ -641,74 +664,51 @@ def complete_initial_test(request):
     if request.user.membre.has_completed_initial_test:
         return JsonResponse({
             'success': False,
-            'error': 'Test initial déjà complété',
+            'error': 'Initial test already completed',
             'redirect_url': reverse('coding:problems')
         })
 
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
-            solved_questions = data.get('solved_questions', [])
-            
-            # Calculate total points and weighted score
-            total_points = 0
-            max_possible_points = 180
-            
-            for question in solved_questions:
-                total_points += question['points']
-            
-            # Calculate percentage score
+            passed = request.session.get('initial_test_passed', [])
+            total_points = sum(InitialTest.objects.filter(id__in=passed).values_list('points', flat=True))
+            max_possible_points = sum(InitialTest.objects.values_list('points', flat=True)) or 1
             score_percentage = (total_points / max_possible_points) * 100
-            
+
             # Determine level based on performance
             if score_percentage >= 80:
                 level = 3
                 level_message = "Expert"
             elif score_percentage >= 50:
                 level = 2
-                level_message = "Intermédiaire"
+                level_message = "Intermediate"
             else:
                 level = 1
-                level_message = "Débutant"
-            
+                level_message = "Beginner"
+
             # Update user's profile
             membre = request.user.membre
             membre.level = level
             membre.points = total_points
             membre.has_completed_initial_test = True
             membre.save()
-            
+            request.session.pop('initial_test_passed', None)
+
             return JsonResponse({
                 'success': True,
                 'level': level_message,
                 'points': total_points,
                 'redirect_url': reverse('coding:problems'),
-                'message': f"Test initial terminé! Niveau atteint: {level_message}"
+                'message': f"Initial test finished. Level: {level_message}"
             })
-            
+
         except Exception as e:
             return JsonResponse({
                 'success': False,
                 'error': str(e)
             })
-    
-    return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
-@login_required
-def problems(request):
-    # Redirect to initial test if not completed
-    if not request.user.membre.has_completed_initial_test:
-        messages.warning(request, 'Vous devez d\'abord compléter le test initial.')
-        return redirect('coding:initial_test')
-    
-    # Get problems based on user's level
-    user_level = request.user.membre.level
-    problems = Problem.objects.filter(difficulty__lte=user_level + 1)
-    
-    return render(request, 'coding/problems.html', {
-        'problems': problems,
-        'user_level': user_level
-    })
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
 @login_required
 def give_up_problem(request, problem_id):
@@ -716,10 +716,10 @@ def give_up_problem(request, problem_id):
         try:
             problem = get_object_or_404(Problem, id=problem_id)
             membre = request.user.membre
-            
+
             # Fixed penalty of 20 points
             points_deducted = 20
-            
+
             # Create a failed submission
             Submission.objects.create(
                 user=membre,
@@ -728,32 +728,32 @@ def give_up_problem(request, problem_id):
                 status='F',
                 execution_time=None
             )
-            
+
             # Deduct points and update level
             membre.points = max(0, membre.points - points_deducted)
             membre.save()
-            
+
             # Check for level change
             level_changed, old_level, new_level = membre.update_level()
-            
+
             response_data = {
                 'success': True,
                 'points_deducted': points_deducted,
                 'new_total_points': membre.points
             }
-            
+
             if level_changed:
                 response_data['level_down'] = True
                 response_data['new_level'] = new_level
-            
+
             return JsonResponse(response_data)
-            
+
         except Exception as e:
             return JsonResponse({
                 'success': False,
                 'error': str(e)
             })
-    
+
     return JsonResponse({
         'success': False,
         'error': 'Invalid request method'
